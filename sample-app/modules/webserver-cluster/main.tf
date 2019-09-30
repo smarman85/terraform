@@ -28,7 +28,7 @@ data "aws_availability_zones" "all" {}
 resource "aws_autoscaling_group" "sample_app_asg" {
   launch_configuration = "${aws_launch_configuration.asg_conf.id}"
   availability_zones   = ["${data.aws_availability_zones.all.names}"]
-  target_group_arns    = ["${aws_lb_target_group.alb.name}"]
+  target_group_arns    = ["${aws_lb_target_group.alb.arn}"]
   health_check_type    = "ELB"
 
   min_size = "${var.min_size}"
@@ -45,6 +45,7 @@ resource "aws_lb_target_group" "alb" {
   port        = "8080"
   protocol    = "HTTP"
   target_type = "instance"
+  vpc_id      = "vpc-b4d093ce"
 }
 
 # security groups (instance)
@@ -96,6 +97,7 @@ resource "aws_lb" "sample_alb" {
   #name               = "sample-alb"
   load_balancer_type = "application"
   security_groups    = ["${aws_security_group.alb.id}"]
+  subnets            = ["subnet-83271aad", "subnet-10ac9b77"]
 
   tags {
     "Created By" = "terraform"
@@ -106,7 +108,7 @@ resource "aws_lb" "sample_alb" {
 resource "aws_lb_listener" "frontend_alb" {
   load_balancer_arn = "${aws_lb.sample_alb.arn}"
   port              = "80"
-  protocol          = "http"
+  protocol          = "HTTP"
 
   default_action {
     type = "redirect"
