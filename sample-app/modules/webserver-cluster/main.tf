@@ -4,11 +4,11 @@ terraform {
 }
 
 resource "aws_launch_configuration" "asg_conf" {
-  name_prefix    = "terraform-lc-sample-app-"
-  image_id       = "${var.image_id}"                          #ami-40d28157
-  instance_type  = "${var.instance_type}"
-  user_data      = "${data.template_file.user_data.rendered}"
-  security_group = "${aws_security_group.instance.id}"
+  name_prefix     = "terraform-lc-sample-app-"
+  image_id        = "${var.image_id}"                          #ami-40d28157
+  instance_type   = "${var.instance_type}"
+  user_data       = "${data.template_file.user_data.rendered}"
+  security_groups = ["${aws_security_group.instance.id}"]
 
   lifecycle {
     create_before_destroy = true
@@ -23,6 +23,8 @@ data "template_file" "user_data" {
   }
 }
 
+data "aws_availability_zones" "all" {}
+
 resource "aws_autoscaling_group" "sample_app_asg" {
   launch_configuration = "${aws_launch_configuration.asg_conf.id}"
   availability_zones   = ["${data.aws_availability_zones.all.names}"]
@@ -35,8 +37,14 @@ resource "aws_autoscaling_group" "sample_app_asg" {
   tag {
     key                 = "Name"
     value               = "${var.cluster_name}"
-    propogate_at_launch = true
+    propagate_at_launch = true
   }
+}
+
+resource "aws_lb_target_group" "alb" {
+  port        = "8080"
+  protocol    = "HTTP"
+  target_type = "instance"
 }
 
 # security groups (instance)
@@ -48,7 +56,7 @@ resource "aws_security_group" "instance" {
   }
 }
 
-resource "aws_security_rule" "allow_server_http_inbound" {
+resource "aws_security_group_rule" "allow_server_http_inbound" {
   type              = "ingress"
   security_group_id = "${aws_security_group.instance.id}"
 
@@ -85,9 +93,9 @@ resource "aws_security_group_rule" "allow_http_outbound" {
 
 # ALB SECTION
 resource "aws_lb" "sample_alb" {
-  name               = "sample-alb"
+  #name               = "sample-alb"
   load_balancer_type = "application"
-  security_groups    = "${aws_security_group.alb_sec_group.id}"
+  security_groups    = ["${aws_security_group.alb.id}"]
 
   tags {
     "Created By" = "terraform"
@@ -104,14 +112,15 @@ resource "aws_lb_listener" "frontend_alb" {
     type = "redirect"
 
     redirect {
-      port     = "8080"
-      protocol = "http"
+      port        = "8080"
+      protocol    = "HTTP"
+      status_code = "HTTP_301"
     }
   }
 }
 
 resource "aws_lb_listener_rule" "health_check" {
-  listener_arn = "${aws_lb_listener.front_end.arn}"
+  listener_arn = "${aws_lb_listener.frontend_alb.arn}"
 
   action {
     type = "fixed-response"
